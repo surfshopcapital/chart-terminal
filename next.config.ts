@@ -1,7 +1,8 @@
-import type { NextConfig } from "next";
+import type { NextConfig } from 'next';
 
 const nextConfig: NextConfig = {
-  /* config options here */
+  // yahoo-finance2 uses native Node.js modules — keep it server-only
+  serverExternalPackages: ['yahoo-finance2'],
 };
 
 export default nextConfig;
