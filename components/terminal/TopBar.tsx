@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { ThemeToggle } from '@/components/ThemeToggle';
 import { useSessionStore } from '@/store/sessionStore';
 import type { Timeframe, Ticker } from '@/types';
@@ -71,6 +72,15 @@ export function TopBar({ tickers, currentIndex, timeframe, onTimeframeChange }: 
         <span className="hidden lg:inline text-[10px] text-[var(--text-secondary)] font-mono">
           ← → navigate · ↑ ↓ timeframe · 1–9 rate · / search
         </span>
+
+        {/* Tickers management link */}
+        <Link
+          href="/tickers"
+          className="text-[10px] font-mono text-[var(--text-secondary)] hover:text-[var(--text-accent)] transition-colors"
+          title="Manage ticker universe"
+        >
+          TICKERS
+        </Link>
 
         <ThemeToggle />
       </div>
