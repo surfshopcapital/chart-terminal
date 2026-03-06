@@ -13,6 +13,7 @@ import type { OHLCVBar } from '@/types';
 
 interface ChartPaneProps {
   bars: OHLCVBar[];
+  dailyBars?: OHLCVBar[];
   isDark: boolean;
 }
 
@@ -55,8 +56,22 @@ interface Legend {
   rsi14: number | null;
 }
 
+/**
+ * Given a sorted array of date strings and a target date string,
+ * returns the index of the last date that is <= target.
+ */
+function findDailyIndex(sortedDates: string[], target: string): number {
+  let lo = 0, hi = sortedDates.length - 1, result = -1;
+  while (lo <= hi) {
+    const mid = (lo + hi) >> 1;
+    if (sortedDates[mid] <= target) { result = mid; lo = mid + 1; }
+    else hi = mid - 1;
+  }
+  return result;
+}
+
 // ── Component ──────────────────────────────────────────────────────────────────
-export function ChartPane({ bars, isDark }: ChartPaneProps) {
+export function ChartPane({ bars, dailyBars, isDark }: ChartPaneProps) {
   const containerRef    = useRef<HTMLDivElement>(null);
   const chartRef        = useRef<IChartApi | null>(null);
   const candleRef       = useRef<SeriesRef | null>(null);
@@ -76,6 +91,22 @@ export function ChartPane({ bars, isDark }: ChartPaneProps) {
     ema8: null, ema21: null, sma21: null, sma50: null, sma200: null, rsi14: null,
   });
 
+  // ── Layout constants (70% main / 15% RSI / 15% MACD) ─────────────────────
+  // Each pane defined by scaleMargins: { top, bottom }
+  // Data occupies (1 - top - bottom) of the full chart height.
+  //   Main: top=0.02, bottom=0.30  → ~68% of chart
+  //   RSI:  top=0.72, bottom=0.14  → ~14%
+  //   MACD: top=0.88, bottom=0.02  → ~10%
+  const MAIN_TOP    = 0.02;
+  const MAIN_BOTTOM = 0.30;
+  const RSI_TOP     = 0.72;
+  const RSI_BOTTOM  = 0.14;
+  const MACD_TOP    = 0.88;
+  const MACD_BOTTOM = 0.02;
+  // Volume at bottom ~12% of main area
+  const VOL_TOP     = 0.62;
+  const VOL_BOTTOM  = MAIN_BOTTOM;
+
   // ── Init chart (once on mount) ────────────────────────────────────────────
   useEffect(() => {
     if (!containerRef.current) return;
@@ -86,14 +117,13 @@ export function ChartPane({ bars, isDark }: ChartPaneProps) {
       layout: isDark ? darkLayout() : lightLayout(),
       grid:   gridColors(isDark),
       crosshair: { mode: 1 },
-      // Main candles occupy top 48% of chart
       rightPriceScale: {
         borderColor: borderColor(isDark),
-        scaleMargins: { top: 0.02, bottom: 0.52 },
+        scaleMargins: { top: MAIN_TOP, bottom: MAIN_BOTTOM },
       },
       timeScale: {
         borderColor: borderColor(isDark),
-        rightOffset: 20,      // 20 empty bars of future space visible
+        rightOffset: 20,
         timeVisible: false,
       },
     });
@@ -106,13 +136,13 @@ export function ChartPane({ bars, isDark }: ChartPaneProps) {
       wickUpColor: '#00d4aa', wickDownColor: '#ff4d4d',
     });
 
-    // ── Volume overlay (bottom 10% of main area, hidden axis) ────────────────
+    // ── Volume overlay (bottom portion of main area, hidden axis) ────────────
     volRef.current = chart.addSeries(HistogramSeries, {
       priceFormat: { type: 'volume' },
       priceScaleId: 'volume',
     });
     chart.priceScale('volume').applyOptions({
-      scaleMargins: { top: 0.38, bottom: 0.52 },
+      scaleMargins: { top: VOL_TOP, bottom: VOL_BOTTOM },
       visible: false,
     });
 
@@ -127,14 +157,14 @@ export function ChartPane({ bars, isDark }: ChartPaneProps) {
     ema8Ref.current   = maLine(MA.ema8);
     ema21Ref.current  = maLine(MA.ema21);
 
-    // ── RSI sub-pane  (54–72% of chart height) ───────────────────────────────
+    // ── RSI sub-pane ─────────────────────────────────────────────────────────
     rsiRef.current = chart.addSeries(LineSeries, {
       color: MA.rsi, lineWidth: 1,
       priceLineVisible: false, lastValueVisible: false,
       priceScaleId: 'rsi',
     });
     chart.priceScale('rsi').applyOptions({
-      scaleMargins: { top: 0.54, bottom: 0.30 },
+      scaleMargins: { top: RSI_TOP, bottom: RSI_BOTTOM },
       visible: true,
       borderColor: subBorderColor(isDark),
     });
@@ -142,12 +172,12 @@ export function ChartPane({ bars, isDark }: ChartPaneProps) {
     // RSI midline at 50 (dashed)
     rsi50Ref.current = chart.addSeries(LineSeries, {
       color: midlineColor(isDark), lineWidth: 1,
-      lineStyle: 2,   // dashed
+      lineStyle: 2,
       priceLineVisible: false, lastValueVisible: false,
       priceScaleId: 'rsi',
     });
 
-    // ── MACD sub-pane  (73–98% of chart height) ──────────────────────────────
+    // ── MACD sub-pane ─────────────────────────────────────────────────────────
     macdHistRef.current = chart.addSeries(HistogramSeries, {
       priceScaleId: 'macd',
       priceLineVisible: false, lastValueVisible: false,
@@ -163,7 +193,7 @@ export function ChartPane({ bars, isDark }: ChartPaneProps) {
       priceLineVisible: false, lastValueVisible: false,
     });
     chart.priceScale('macd').applyOptions({
-      scaleMargins: { top: 0.73, bottom: 0.02 },
+      scaleMargins: { top: MACD_TOP, bottom: MACD_BOTTOM },
       visible: true,
       borderColor: subBorderColor(isDark),
     });
@@ -191,8 +221,15 @@ export function ChartPane({ bars, isDark }: ChartPaneProps) {
   useEffect(() => {
     if (!candleRef.current || !volRef.current || bars.length === 0) return;
 
-    const closes = bars.map((b) => b.close);
-    const ind    = computeIndicators(closes);
+    // Indicators are always computed from daily bars.
+    // Fall back to displayed bars only if daily bars aren't loaded yet.
+    const srcBars = (dailyBars && dailyBars.length > 0) ? dailyBars : bars;
+    const closes  = srcBars.map((b) => b.close);
+    const ind     = computeIndicators(closes);
+
+    // Build date→index lookup for daily bars so we can map indicator values
+    // onto whichever timeframe is currently displayed.
+    const dailyDates = srcBars.map((b) => b.time);
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const t = (b: OHLCVBar) => b.time as any;
@@ -207,9 +244,15 @@ export function ChartPane({ bars, isDark }: ChartPaneProps) {
       })),
     );
 
+    // Map each display bar to the nearest daily indicator value (on or before that date).
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const toLine = (vals: (number | null)[]): any[] =>
-      vals.map((v, i) => (v !== null ? { time: t(bars[i]), value: v } : null)).filter(Boolean);
+      bars.map((b) => {
+        const di = findDailyIndex(dailyDates, b.time);
+        if (di < 0) return null;
+        const v = vals[di];
+        return v !== null ? { time: t(b), value: v } : null;
+      }).filter(Boolean);
 
     sma21Ref.current?.setData(toLine(ind.sma21));
     sma50Ref.current?.setData(toLine(ind.sma50));
@@ -221,30 +264,36 @@ export function ChartPane({ bars, isDark }: ChartPaneProps) {
     rsiRef.current?.setData(toLine(ind.rsi14));
     rsi50Ref.current?.setData(bars.map((b) => ({ time: t(b), value: 50 })));
 
-    // MACD
+    // MACD — map each MACD component through the same daily→display lookup
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const macdKey = (key: 'macd' | 'signal'): any[] =>
-      ind.macd
-        .map((m, i) => (m[key] !== null ? { time: t(bars[i]), value: m[key] } : null))
-        .filter(Boolean);
+      bars.map((b) => {
+        const di = findDailyIndex(dailyDates, b.time);
+        if (di < 0) return null;
+        const m = ind.macd[di];
+        return m[key] !== null ? { time: t(b), value: m[key] } : null;
+      }).filter(Boolean);
 
     macdLineRef.current?.setData(macdKey('macd'));
     macdSignalRef.current?.setData(macdKey('signal'));
     macdHistRef.current?.setData(
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      ind.macd.map((m, i) =>
-        m.histogram !== null
+      bars.map((b) => {
+        const di = findDailyIndex(dailyDates, b.time);
+        if (di < 0) return null;
+        const m = ind.macd[di];
+        return m.histogram !== null
           ? {
-              time: t(bars[i]),
+              time: t(b),
               value: m.histogram,
               color: m.histogram >= 0 ? 'rgba(0,212,170,0.65)' : 'rgba(255,77,77,0.65)',
             }
-          : null,
+          : null;
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      ).filter(Boolean) as any[],
+      }).filter(Boolean) as any[],
     );
 
-    // Legend: last non-null value for each MA + RSI
+    // Legend: last non-null daily indicator values
     setLegend({
       ema8:  lastNonNull(ind.ema8),
       ema21: lastNonNull(ind.ema21),
@@ -255,7 +304,7 @@ export function ChartPane({ bars, isDark }: ChartPaneProps) {
     });
 
     chartRef.current?.timeScale().fitContent();
-  }, [bars]);
+  }, [bars, dailyBars]);
 
   // ── Update theme when isDark changes ──────────────────────────────────────
   useEffect(() => {
@@ -305,16 +354,16 @@ export function ChartPane({ bars, isDark }: ChartPaneProps) {
         )}
       </div>
 
-      {/* Sub-pane labels */}
+      {/* Sub-pane labels — positioned at the top of each sub-pane */}
       <div
         className="absolute left-1.5 font-mono text-[9px] pointer-events-none z-10 select-none"
-        style={{ top: '54%', color: MA.rsi, opacity: 0.45 }}
+        style={{ top: `${RSI_TOP * 100}%`, color: MA.rsi, opacity: 0.45 }}
       >
         RSI 14
       </div>
       <div
         className="absolute left-1.5 font-mono text-[9px] pointer-events-none z-10 select-none"
-        style={{ top: '73%', color: MA.macdL, opacity: 0.45 }}
+        style={{ top: `${MACD_TOP * 100}%`, color: MA.macdL, opacity: 0.45 }}
       >
         MACD
       </div>

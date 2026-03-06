@@ -44,6 +44,8 @@ export function FlashcardShell({ tickers }: FlashcardShellProps) {
   }, [currentIndex, tickers, timeframe]);
 
   const { data: bars, isLoading } = useOHLCV(ticker?.symbol ?? null, timeframe);
+  // Always fetch daily bars regardless of display timeframe — used for indicators & % changes
+  const { data: dailyBars } = useOHLCV(ticker?.symbol ?? null, 'D');
   const { data: quote } = useQuote(ticker?.symbol ?? null);
 
   if (!ticker) {
@@ -69,15 +71,16 @@ export function FlashcardShell({ tickers }: FlashcardShellProps) {
           {isLoading || !bars ? (
             <SkeletonCard />
           ) : (
-            <ChartPane bars={bars} isDark={theme === 'dark'} />
+            <ChartPane bars={bars} dailyBars={dailyBars} isDark={theme === 'dark'} />
           )}
         </main>
 
         {/* Right info panel */}
-        <aside className="w-72 shrink-0 border-l border-[var(--border)] bg-[var(--bg-panel)]">
+        <aside className="w-[432px] shrink-0 border-l border-[var(--border)] bg-[var(--bg-panel)]">
           <InfoPanel
             ticker={ticker}
             quote={quote}
+            dailyBars={dailyBars}
             noteFocusTrigger={noteFocusTrigger}
           />
         </aside>

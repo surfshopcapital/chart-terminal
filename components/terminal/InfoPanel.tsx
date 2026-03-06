@@ -1,21 +1,70 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef } from 'react';
 import useSWR from 'swr';
 import { RatingInput } from './RatingInput';
 import { NotesEditor } from './NotesEditor';
 import { useSessionStore } from '@/store/sessionStore';
-import type { Ticker, Quote } from '@/types';
+import type { Ticker, Quote, OHLCVBar } from '@/types';
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json());
 
 interface InfoPanelProps {
   ticker: Ticker;
   quote: Quote | undefined;
+  dailyBars?: OHLCVBar[];
   noteFocusTrigger: number;
 }
 
-export function InfoPanel({ ticker, quote, noteFocusTrigger }: InfoPanelProps) {
+function fmt(n: number, decimals = 2) {
+  return n.toLocaleString('en-US', {
+    minimumFractionDigits: decimals,
+    maximumFractionDigits: decimals,
+  });
+}
+
+/** Return the close price of the bar closest to `daysAgo` calendar days back. */
+function closeDaysAgo(bars: OHLCVBar[], daysAgo: number): number | null {
+  if (bars.length === 0) return null;
+  const target = new Date();
+  target.setDate(target.getDate() - daysAgo);
+  const targetStr = target.toISOString().slice(0, 10);
+
+  // Find last bar on or before target date
+  let lo = 0, hi = bars.length - 1, result = -1;
+  while (lo <= hi) {
+    const mid = (lo + hi) >> 1;
+    if (bars[mid].time <= targetStr) { result = mid; lo = mid + 1; }
+    else hi = mid - 1;
+  }
+  return result >= 0 ? bars[result].close : null;
+}
+
+interface PeriodChange {
+  label: string;
+  pct: number | null;
+}
+
+function computePeriodChanges(bars: OHLCVBar[]): PeriodChange[] {
+  if (bars.length === 0) return [];
+  const current = bars[bars.length - 1].close;
+
+  const periods: { label: string; daysAgo: number }[] = [
+    { label: '1D',  daysAgo: 1   },
+    { label: '1W',  daysAgo: 7   },
+    { label: '1M',  daysAgo: 30  },
+    { label: '1Y',  daysAgo: 365 },
+    { label: '5Y',  daysAgo: 365 * 5 },
+  ];
+
+  return periods.map(({ label, daysAgo }) => {
+    const past = closeDaysAgo(bars, daysAgo);
+    const pct = past && past !== 0 ? ((current - past) / past) * 100 : null;
+    return { label, pct };
+  });
+}
+
+export function InfoPanel({ ticker, quote, dailyBars, noteFocusTrigger }: InfoPanelProps) {
   const { getPendingRating, setPendingRating, clearPendingRating } = useSessionStore();
 
   const today = new Date().toISOString().slice(0, 10);
@@ -49,12 +98,7 @@ export function InfoPanel({ ticker, quote, noteFocusTrigger }: InfoPanelProps) {
       ? 'text-[var(--green)]'
       : 'text-[var(--red)]';
 
-  function fmt(n: number, decimals = 2) {
-    return n.toLocaleString('en-US', {
-      minimumFractionDigits: decimals,
-      maximumFractionDigits: decimals,
-    });
-  }
+  const periodChanges = dailyBars ? computePeriodChanges(dailyBars) : [];
 
   return (
     <div className="flex h-full flex-col gap-4 overflow-y-auto p-4 text-sm">
@@ -88,6 +132,33 @@ export function InfoPanel({ ticker, quote, noteFocusTrigger }: InfoPanelProps) {
         </div>
       ) : (
         <div className="h-14 rounded bg-[var(--bg-elevated)] animate-pulse" />
+      )}
+
+      {/* Period % Changes */}
+      {periodChanges.length > 0 && (
+        <div className="border-t border-[var(--border)] pt-3">
+          <div className="text-[10px] uppercase tracking-widest text-[var(--text-secondary)] mb-2">
+            Performance
+          </div>
+          <div className="grid grid-cols-5 gap-1">
+            {periodChanges.map(({ label, pct }) => {
+              const color =
+                pct === null ? 'text-[var(--text-secondary)]'
+                : pct >= 0   ? 'text-[var(--green)]'
+                :              'text-[var(--red)]';
+              return (
+                <div key={label} className="flex flex-col items-center gap-0.5">
+                  <span className="text-[9px] text-[var(--text-secondary)] font-mono">{label}</span>
+                  <span className={`text-[11px] font-mono font-medium ${color}`}>
+                    {pct === null
+                      ? '—'
+                      : `${pct >= 0 ? '+' : ''}${fmt(pct, 1)}%`}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+        </div>
       )}
 
       {/* Description */}

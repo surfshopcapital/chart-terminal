@@ -11,7 +11,7 @@ const INTERVAL_MAP: Record<Timeframe, '1d' | '1wk' | '1mo'> = {
 };
 
 const LOOKBACK_DAYS: Record<Timeframe, number> = {
-  D: 365,
+  D: 365 * 5 + 90,
   W: 365 * 3,
   M: 365 * 10,
 };

@@ -7,7 +7,7 @@ export interface TickerSeed {
 }
 
 export const universe: TickerSeed[] = [
-  // ── FX ──────────────────────────────────────────────────────────────────
+  // ── FX — Major pairs only ─────────────────────────────────────────────────
   { symbol: 'EURUSD=X', name: 'EUR/USD', type: 'fx', category: 'fx', description: 'Euro vs US Dollar' },
   { symbol: 'GBPUSD=X', name: 'GBP/USD', type: 'fx', category: 'fx', description: 'British Pound vs US Dollar' },
   { symbol: 'USDJPY=X', name: 'USD/JPY', type: 'fx', category: 'fx', description: 'US Dollar vs Japanese Yen' },
@@ -15,18 +15,6 @@ export const universe: TickerSeed[] = [
   { symbol: 'AUDUSD=X', name: 'AUD/USD', type: 'fx', category: 'fx', description: 'Australian Dollar vs US Dollar' },
   { symbol: 'NZDUSD=X', name: 'NZD/USD', type: 'fx', category: 'fx', description: 'New Zealand Dollar vs US Dollar' },
   { symbol: 'USDCAD=X', name: 'USD/CAD', type: 'fx', category: 'fx', description: 'US Dollar vs Canadian Dollar' },
-  { symbol: 'EURGBP=X', name: 'EUR/GBP', type: 'fx', category: 'fx', description: 'Euro vs British Pound' },
-  { symbol: 'EURJPY=X', name: 'EUR/JPY', type: 'fx', category: 'fx', description: 'Euro vs Japanese Yen' },
-  { symbol: 'GBPJPY=X', name: 'GBP/JPY', type: 'fx', category: 'fx', description: 'British Pound vs Japanese Yen' },
-  { symbol: 'AUDJPY=X', name: 'AUD/JPY', type: 'fx', category: 'fx', description: 'Australian Dollar vs Japanese Yen' },
-  { symbol: 'CADJPY=X', name: 'CAD/JPY', type: 'fx', category: 'fx', description: 'Canadian Dollar vs Japanese Yen' },
-  { symbol: 'USDMXN=X', name: 'USD/MXN', type: 'fx', category: 'fx', description: 'US Dollar vs Mexican Peso' },
-  { symbol: 'USDBRL=X', name: 'USD/BRL', type: 'fx', category: 'fx', description: 'US Dollar vs Brazilian Real' },
-  { symbol: 'USDINR=X', name: 'USD/INR', type: 'fx', category: 'fx', description: 'US Dollar vs Indian Rupee' },
-  { symbol: 'USDCNY=X', name: 'USD/CNY', type: 'fx', category: 'fx', description: 'US Dollar vs Chinese Yuan' },
-  { symbol: 'USDZAR=X', name: 'USD/ZAR', type: 'fx', category: 'fx', description: 'US Dollar vs South African Rand' },
-  { symbol: 'USDKRW=X', name: 'USD/KRW', type: 'fx', category: 'fx', description: 'US Dollar vs South Korean Won' },
-  { symbol: 'USDTRY=X', name: 'USD/TRY', type: 'fx', category: 'fx', description: 'US Dollar vs Turkish Lira' },
   { symbol: 'DX-Y.NYB', name: 'US Dollar Index', type: 'index', category: 'fx', description: 'DXY — measures USD vs basket of major currencies' },
 
   // ── GLOBAL INDEXES ───────────────────────────────────────────────────────
